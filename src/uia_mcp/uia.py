@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+import os
+
 import comtypes
 import comtypes.client
 
@@ -15,6 +17,15 @@ from comtypes.gen import UIAutomationClient as UIA  # noqa: E402
 
 #: CUIAutomation8 — cho ta IUIAutomation2+ với các thuộc tính timeout và AutoSetFocus.
 CLSID_CUIAutomation8 = "{E22AD333-B25F-460C-83D0-0581107395C9}"
+
+#: Thời gian chờ provider trả lời một transaction.
+#:
+#: Đặt 5 s là quá ngắn cho ứng dụng nặng: Revit 2027 cần 6–16 s cho một lần duyệt subtree,
+#: nên mọi truy vấn đều hỏng với ``UIA_E_TIMEOUT`` (0x80131505) — mà lỗi đó hiện ra dưới
+#: dạng COMError khó hiểu, dễ tưởng nhầm là app treo. 30 s bao được Revit, và thread STA
+#: vẫn còn watchdog riêng của nó nên không có nguy cơ treo vô hạn.
+TRANSACTION_TIMEOUT_MS = int(os.environ.get("UIA_MCP_TRANSACTION_TIMEOUT_MS", "30000"))
+CONNECTION_TIMEOUT_MS = int(os.environ.get("UIA_MCP_CONNECTION_TIMEOUT_MS", "5000"))
 
 CONTROL_TYPE_NAMES: dict[int, str] = {
     value: key[len("UIA_") : -len("ControlTypeId")]
@@ -115,8 +126,8 @@ def automation() -> Any:
             obj2 = obj.QueryInterface(UIA.IUIAutomation2)
             # Không bao giờ tự cướp focus của người dùng khi chỉ đang quan sát.
             obj2.AutoSetFocus = False
-            obj2.ConnectionTimeout = 2000
-            obj2.TransactionTimeout = 5000
+            obj2.ConnectionTimeout = CONNECTION_TIMEOUT_MS
+            obj2.TransactionTimeout = TRANSACTION_TIMEOUT_MS
             obj = obj2
         except Exception:
             pass  # IUIAutomation2 không có trên bản Windows quá cũ — vẫn chạy được
