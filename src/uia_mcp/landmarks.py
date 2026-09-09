@@ -76,11 +76,18 @@ def _entry_key(control_type: str, name: str) -> str:
     return f"{control_type}:{name}"
 
 
-def capture(window: Any, min_area: int = 1) -> dict:
+def capture(window: Any, min_area: int = 1, merge: bool = False) -> dict:
     """Quét một lần, ghi toạ độ mọi phần tử có tên. Đắt — chỉ chạy khi cần.
 
     Ghi cả rect cửa sổ lúc chụp, để lần sau biết cửa sổ đã bị di chuyển hay đổi kích thước
     và điểm neo nhiều khả năng đã lệch.
+
+    ``merge=True`` giữ lại điểm neo của những lần quét trước thay vì thay thế chúng. Cần
+    cho giao diện chỉ lộ một phần tại một thời điểm: ribbon Revit chỉ dựng cây cho tab
+    đang mở, nên muốn có điểm neo của nhiều tab thì phải quét từng tab rồi gộp. Điểm neo
+    trùng tên thì lần quét mới thắng. Gộp không làm mất an toàn: mỗi lần dùng, resolve()
+    vẫn kiểm chứng lại danh tính tại toạ độ đó, nên điểm neo của tab đang đóng sẽ báo
+    hỏng chứ không trả về nhầm phần tử.
     """
     automation = uia.automation()
     started = time.perf_counter()
@@ -117,6 +124,10 @@ def capture(window: Any, min_area: int = 1) -> dict:
 
     store = _load()
     key = app_key(window)
+    if merge:
+        kept = dict(store.get(key, {}).get("entries", {}))
+        kept.update(entries)
+        entries = kept
     store[key] = {
         "captured_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "scan_ms": round((time.perf_counter() - started) * 1000),

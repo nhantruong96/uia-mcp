@@ -119,7 +119,7 @@ def find(
 
 
 @mcp.tool(annotations=READ_ONLY)
-def landmark_capture(window: str = "focused") -> str:
+def landmark_capture(window: str = "focused", merge: bool = False) -> str:
     """Quét một lần và ghi toạ độ mọi phần tử có tên của ứng dụng đó, để lần sau trỏ nhanh.
 
     Dùng cho ứng dụng nặng mà bạn làm việc thường xuyên. Đo trên Revit 2027 có model:
@@ -128,11 +128,15 @@ def landmark_capture(window: str = "focused") -> str:
     gần như tức thì.
 
     Chạy lại khi giao diện đổi đáng kể (đổi tab ribbon, bật/tắt panel, đổi kích thước cửa sổ).
+
+    merge=True gộp thêm vào điểm neo đã có thay vì thay thế. Dùng khi giao diện chỉ lộ một
+    phần tại một thời điểm — ribbon Revit chỉ dựng cây cho tab đang mở, nên muốn có điểm
+    neo của nhiều tab thì mở từng tab, quét với merge=True.
     """
 
     def work() -> str:
         target = perceive.resolve_window(window)
-        data = landmarks.capture(target)
+        data = landmarks.capture(target, merge=merge)
         return (
             f"đã ghi {len(data['entries'])} điểm neo cho {landmarks.app_key(target)} "
             f"(lần quét này mất {data['scan_ms']} ms). Từ giờ dùng landmark_find()."
