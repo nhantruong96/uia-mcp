@@ -3,8 +3,25 @@
 MCP server điều khiển Windows qua cây trợ năng **UI Automation** — cùng API mà NVDA và
 Narrator dùng để đọc màn hình cho người khiếm thị.
 
-**Không tool nào ở đây chụp ảnh màn hình.** Model không nhìn pixel và không đoán toạ độ:
-nó đọc một bảng ID, rồi tác động lên ID bằng control pattern của chính ứng dụng.
+Model không nhìn pixel và không đoán toạ độ: nó đọc một bảng ID, rồi tác động lên ID bằng
+control pattern của chính ứng dụng.
+
+## Thứ tự ưu tiên — không được đảo
+
+```
+1. MCP riêng của ứng dụng (API)   revit-mcp · Excel-MCP · Navisworks · Outlook · ACC · SAP2000
+   nhanh nhất, tin cậy nhất, không cần ứng dụng mở cửa sổ
+2. UIA — server này               cho mọi ứng dụng còn lại
+3. screenshot()                   CHỈ khi bậc 1 và 2 đều bó tay
+```
+
+Bậc 3 là lối thoát cuối, không phải công cụ mặc định. Bậc 1 và 2 cho biết trạng thái *thật*
+— enabled, on/off, giá trị ô nhập — mà ảnh không có, và rẻ hơn hàng nghìn token mỗi lần
+nhìn. Ảnh chỉ đáng dùng với bề mặt vẽ trên canvas: viewport 3D của Revit, canvas AutoCAD,
+lưới Excel Online, game.
+
+Kỷ luật đó được **mã hoá vào chính tool**, không chỉ nằm trong tài liệu: `screenshot()` có
+tham số `tried` bắt buộc, khai qua loa thì bị từ chối kèm lời nhắc thử hai bậc trên trước.
 
 Mọi con số đo đạc trong tài liệu này đều lấy từ máy thật, không phải ước lượng.
 
@@ -50,6 +67,7 @@ claude mcp add uia --scope user -- <đường-dẫn-repo>\.venv\Scripts\uia-mcp.
 | `read_table(id, start_row, max_rows)` | Bảng/lưới qua `GridPattern`, có phân trang |
 | `act(id, action, value)` | Tác động qua control pattern, có thang fallback |
 | `press_key(combo)` | Phím tắt toàn cục, ví dụ `ctrl+s` |
+| `screenshot(tried, window)` | **Lối thoát cuối** — chụp PNG, bắt khai đã thử gì trước đó |
 
 ### `observe` trả về gì
 
@@ -159,10 +177,19 @@ Chụp lại khi giao diện đổi đáng kể: đổi tab ribbon, bật/tắt 
 
 `click` · `double_click` · `right_click` · `set_value` · `type` · `toggle` · `select` ·
 `expand` · `collapse` · `scroll` · `scroll_into_view` · `set_number` · `focus` ·
-`click_physical` · `close` · `restore` · `minimize` · `maximize`
+`click_physical` · `drag` · `add_to_selection` · `close` · `restore` · `minimize` · `maximize`
 
 `click_physical` bỏ qua mọi pattern và click chuột thật ngay — dùng khi provider nhận
 pattern rồi báo thành công nhưng ứng dụng không phản ứng (đặc trưng của web view React).
+
+`drag` nhận `value` là `"x,y"` hoặc `"id:N"`. UIA không có pattern nào cho kéo–thả nên
+đây luôn là chuột thật, nhưng **cả hai đầu đều được kẹp biên và kiểm chứng danh tính**
+trước khi bơm sự kiện. Đường đi qua nhiều bước trung gian vì nhiều ứng dụng chỉ nhận ra
+thao tác kéo sau vài sự kiện di chuyển.
+
+`add_to_selection` là multi-select: `SelectionItemPattern.AddToSelection`, tụt xuống
+Ctrl+click khi provider không hỗ trợ. Phím Ctrl được nhả trong `finally` — Ctrl kẹt ở
+trạng thái nhấn sẽ làm hỏng mọi thao tác sau đó của người dùng.
 
 Ưu tiên `set_value` hơn `type`: nó ghi thẳng qua `ValuePattern`, tức thì, và **không cần
 cửa sổ ở foreground**.

@@ -8,6 +8,7 @@ nhìn ảnh và đoán.
 from __future__ import annotations
 
 import ctypes
+import time
 from ctypes import wintypes
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -165,6 +166,44 @@ def click_at(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
             INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dwFlags=down)),
             INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dwFlags=up)),
         )
+
+
+def drag(start: tuple[int, int], end: tuple[int, int], steps: int = 12) -> None:
+    """Kéo thả bằng chuột thật.
+
+    Đi qua nhiều bước trung gian thay vì nhảy thẳng: rất nhiều ứng dụng chỉ bắt đầu
+    thao tác kéo sau khi nhận được vài sự kiện di chuyển, nên nhảy một phát từ điểm
+    đầu tới điểm cuối thường không kích hoạt gì cả.
+    """
+    x0, y0 = int(start[0]), int(start[1])
+    x1, y1 = int(end[0]), int(end[1])
+    if not user32.SetCursorPos(x0, y0):
+        raise OSError("SetCursorPos thất bại", ctypes.get_last_error())
+    time.sleep(0.05)
+    _send(INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dwFlags=MOUSEEVENTF_LEFTDOWN)))
+    time.sleep(0.05)
+    for i in range(1, steps + 1):
+        user32.SetCursorPos(x0 + (x1 - x0) * i // steps, y0 + (y1 - y0) * i // steps)
+        time.sleep(0.02)
+    time.sleep(0.05)
+    _send(INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dwFlags=MOUSEEVENTF_LEFTUP)))
+
+
+def hold_key(key: str, action) -> None:
+    """Giữ một phím điều khiển trong lúc thực hiện ``action``, rồi nhả ra.
+
+    Dùng cho Ctrl+click (mở rộng vùng chọn) và Shift+click (chọn khoảng). Nhả phím
+    trong ``finally`` để một lỗi giữa chừng không để phím kẹt ở trạng thái nhấn — phím
+    Ctrl kẹt sẽ khiến mọi thao tác sau đó của người dùng hoá điên.
+    """
+    code = VK[key.strip().lower()]
+    _send(_key_event(code, 0, 0))
+    try:
+        time.sleep(0.05)
+        action()
+        time.sleep(0.05)
+    finally:
+        _send(_key_event(code, 0, KEYEVENTF_KEYUP))
 
 
 def wheel_at(x: int, y: int, direction: str = "down", notches: int = 3) -> None:

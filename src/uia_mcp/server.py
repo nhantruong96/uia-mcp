@@ -11,6 +11,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from . import __version__, actions, landmarks, perceive, text
+from . import screenshot as screenshot_module
 from .registry import REGISTRY
 from .sta import STA
 
@@ -18,9 +19,15 @@ mcp = MCPServer(
     "uia-mcp",
     version=__version__,
     instructions=(
-        "Điều khiển Windows qua cây trợ năng UI Automation. Luôn gọi observe() trước để "
-        "lấy id của phần tử, rồi dùng id đó cho act()/read_text() — không bao giờ đoán "
-        "toạ độ. Không có tool nào ở đây chụp ảnh màn hình."
+        "Điều khiển Windows qua cây trợ năng UI Automation.\n"
+        "\n"
+        "THỨ TỰ ƯU TIÊN, không được đảo:\n"
+        "1. MCP riêng của ứng dụng (API) — revit-mcp, Excel-MCP, Navisworks, Outlook, "
+        "ACC, SAP2000… Nhanh nhất, tin cậy nhất, không cần ứng dụng mở cửa sổ.\n"
+        "2. UIA — các tool ở server này, cho mọi ứng dụng còn lại. Gọi observe() hoặc "
+        "find() để lấy id, rồi act()/read_text() trên id đó; không bao giờ đoán toạ độ.\n"
+        "3. screenshot() — CHỈ khi cả hai bậc trên đều bó tay, ví dụ nội dung vẽ trên "
+        "canvas (viewport 3D, lưới Excel Online, game). Tool này bắt khai rõ đã thử gì.\n"
     ),
 )
 
@@ -236,6 +243,35 @@ def act(id: int, action: str, value: str | None = None) -> str:
         return actions.act(REGISTRY.get(id), action, value)
 
     return _run(work)
+
+
+@mcp.tool(annotations=READ_ONLY)
+def screenshot(tried: str, window: str = "focused") -> str:
+    """LỰA CHỌN CUỐI CÙNG. Chụp ảnh một cửa sổ, lưu ra file PNG, trả về đường dẫn.
+
+    Chỉ dùng khi cả hai bậc trên đều đã bó tay:
+      1. MCP riêng của ứng dụng (revit-mcp, Excel-MCP, Navisworks, Outlook…)
+      2. UIA — observe(), find(), read_text(), read_table()
+
+    Bậc 1 và 2 cho biết trạng thái thật (enabled, on/off, giá trị ô nhập) mà ảnh không
+    có, và rẻ hơn hàng nghìn token mỗi lần nhìn. Ảnh chỉ đáng dùng với bề mặt vẽ trên
+    canvas — viewport 3D của Revit, canvas AutoCAD, lưới Excel Online, game — nơi thật
+    sự không còn gì để đọc.
+
+    Tham số:
+        tried: BẮT BUỘC. Nêu cụ thể đã thử gì và thất bại ra sao. Không phải thủ tục
+            hành chính — nó buộc dừng lại một nhịp để tự hỏi đã thử API và UIA chưa,
+            và để lại dấu vết vì sao lần này phải dùng ảnh. Khai qua loa sẽ bị từ chối.
+        window: "focused" (mặc định), "desktop" cho toàn màn hình, hwnd, hoặc tiêu đề.
+
+    Trả về đường dẫn file; dùng tool Read trên đường dẫn đó để xem ảnh.
+    """
+
+    def work() -> str:
+        target = None if window == "desktop" else perceive.resolve_window(window)
+        return screenshot_module.capture(target, tried)
+
+    return _run(work, timeout=60)
 
 
 @mcp.tool(annotations=MUTATING)

@@ -601,6 +601,86 @@ def _act_click_physical(element: Any, value: str | None) -> str:
     )
 
 
+def _safe_point(element: Any) -> tuple[int, int] | None:
+    """Tâm phần tử, đã kẹp vào cửa sổ chủ và kiểm chứng bằng ElementFromPoint."""
+    box = uia.rect(element, live=True)
+    if box is None:
+        return None
+    window = _host_window_rect(element)
+    if window:
+        left, top = max(box[0], window[0]), max(box[1], window[1])
+        right, bottom = min(box[2], window[2]), min(box[3], window[3])
+        if right <= left or bottom <= top:
+            return None
+        box = (left, top, right, bottom)
+    point = ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)
+    return point if _resolves_to(point, element) else None
+
+
+def _act_drag(element: Any, value: str | None) -> str:
+    """Kéo phần tử này tới một đích.
+
+    ``value`` là ``"x,y"`` (toạ độ màn hình) hoặc ``"id:N"`` (id của phần tử đích).
+    UIA không có pattern nào cho kéo–thả, nên đây luôn là chuột thật; cả hai đầu đều
+    được kẹp biên và kiểm chứng danh tính trước khi bơm sự kiện.
+    """
+    if not value:
+        raise ValueError("drag cần value: 'x,y' hoặc 'id:N'")
+    spec = value.strip()
+
+    if spec.lower().startswith("id:"):
+        from .registry import REGISTRY
+
+        target = REGISTRY.get(int(spec[3:]))
+        end = _safe_point(target)
+        if end is None:
+            return Ladder("drag").run([("đích không xác định được", lambda: False)])
+        end_label = f"id:{spec[3:]}"
+    else:
+        try:
+            xs, ys = spec.split(",")
+            end = (int(xs), int(ys))
+        except Exception:
+            raise ValueError(f"value không hợp lệ: {value!r} — cần 'x,y' hoặc 'id:N'") from None
+        end_label = f"{end[0]},{end[1]}"
+
+    def try_drag() -> Any:
+        start = _safe_point(element)
+        if start is None:
+            return False
+        rawinput.drag(start, end)
+        return f"{start[0]},{start[1]} → {end_label}"
+
+    return Ladder("drag").run([("chuột thật (UIA không có pattern kéo–thả)", try_drag)])
+
+
+def _act_add_to_selection(element: Any, value: str | None) -> str:
+    """Thêm phần tử vào vùng chọn hiện có thay vì thay thế nó — tức multi-select."""
+
+    def try_pattern() -> Any:
+        pattern = _selection_item(element)
+        if not pattern:
+            return False
+        pattern.AddToSelection()
+        return "SelectionItemPattern.AddToSelection"
+
+    def try_ctrl_click() -> Any:
+        point = _safe_point(element)
+        if point is None:
+            return False
+        try:
+            element.SetFocus()
+        except Exception:
+            pass
+        # Ctrl+click là cách người dùng thật mở rộng vùng chọn khi provider không hỗ trợ.
+        rawinput.hold_key("ctrl", lambda: rawinput.click_at(point[0], point[1]))
+        return f"Ctrl+click tại {point[0]},{point[1]}"
+
+    return Ladder("add_to_selection").run(
+        [("SelectionItemPattern.AddToSelection", try_pattern), ("Ctrl + click chuột thật", try_ctrl_click)]
+    )
+
+
 def _act_right_click(element: Any, value: str | None) -> str:
     return Ladder("right_click").run(
         [("chuột phải tại BoundingRectangle", lambda: _click_center(element, button="right"))]
@@ -619,6 +699,8 @@ ACTIONS: dict[str, Callable[[Any, str | None], str]] = {
     "double_click": _act_double_click,
     "right_click": _act_right_click,
     "click_physical": _act_click_physical,
+    "drag": _act_drag,
+    "add_to_selection": _act_add_to_selection,
     "set_value": _act_set_value,
     "type": _act_type,
     "toggle": _act_toggle,

@@ -298,7 +298,43 @@ try:
     check("điểm neo lệch bị từ chối", stale is None, stale_note[:60])
     check("thông báo nói rõ dưới toạ độ đó là gì", "hiện là" in stale_note or "đã cũ" in stale_note)
 
-    print("\n=== 12. dọn dẹp: xoá nội dung và đóng tab thừa ===")
+    print("\n=== 12. action mới + screenshot là lối thoát cuối ===")
+    from uia_mcp import screenshot as shot  # noqa: PLC0415
+
+    check("drag đã đăng ký", "drag" in actions.ACTIONS)
+    check("add_to_selection đã đăng ký", "add_to_selection" in actions.ACTIONS)
+
+    document = row_for(
+        STA.call(perceive.observe, window=str(hwnd), filter="interactive"),
+        lambda p: p[1] == "Document",
+    )
+    if document:
+        try:
+            STA.call(actions.act, REGISTRY.get(document[0]), "drag", "khong-phai-toa-do")
+            check("drag từ chối value sai định dạng", False, "không ném lỗi")
+        except ValueError as exc:
+            check("drag từ chối value sai định dạng", "x,y" in str(exc), str(exc)[:55])
+
+    # Screenshot phải BẮT khai đã thử gì; khai qua loa thì từ chối.
+    for weak in ("", "thu roi"):
+        try:
+            STA.call(shot.capture, None, weak)
+            check(f"screenshot từ chối tried={weak!r}", False, "không từ chối")
+        except shot.NotLastResort:
+            check(f"screenshot từ chối tried={weak!r}", True)
+
+    good = "revit-mcp khong doc duoc viewport; observe/find deu chi ra CustomControl rong"
+    window_element = STA.call(perceive.resolve_window, str(hwnd))
+    result = STA.call(shot.capture, window_element, good, timeout=60)
+    png = [line for line in result.splitlines() if line.lower().endswith(".png")]
+    check("screenshot tạo được file khi khai hợp lệ", bool(png), png[0] if png else result[:50])
+    if png:
+        from pathlib import Path  # noqa: PLC0415
+
+        check("file PNG tồn tại và khác rỗng", Path(png[0]).stat().st_size > 1000)
+    check("kết quả ghi lại lời khai", good[:30] in result)
+
+    print("\n=== 13. dọn dẹp: xoá nội dung và đóng tab thừa ===")
     # Notepad của Windows 11 khôi phục session, nên phải trả nó về trạng thái sạch,
     # nếu không lần mở sau sẽ đầy tab rác. Vòng lặp này cũng là một bài test thật:
     # observe -> act -> observe lại, nhiều lượt liên tiếp.

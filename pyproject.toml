@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Điều khiển Windows qua UI Automation — không screenshot, không toạ độ"
 requires-python = ">=3.11"
 dependencies = [
+    "pillow>=10.0.0",
     "mcp>=2.0.0",
     "comtypes>=1.4.0",
 ]
