@@ -11,6 +11,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from . import __version__, actions, landmarks, perceive, text
+from . import notifications as notifications_module
 from . import screenshot as screenshot_module
 from .registry import REGISTRY
 from .sta import STA
@@ -243,6 +244,38 @@ def act(id: int, action: str, value: str | None = None) -> str:
         return actions.act(REGISTRY.get(id), action, value)
 
     return _run(work)
+
+
+@mcp.tool(annotations=READ_ONLY)
+def notifications(
+    limit: int = 20, app: str | None = None, kind: str = "toast", since_hours: float | None = None
+) -> str:
+    """Đọc thông báo Windows gần đây, mới nhất trước.
+
+    Đọc thẳng kho SQLite của Notification Center — chỉ đọc, **không mở panel thông báo**,
+    không đụng gì tới màn hình của người dùng.
+
+    Toast biến mất rất nhanh: Windows xoá khi người dùng gạt đi hoặc khi hết hạn. Đo được
+    trong lúc phát triển: kho tụt từ 19 xuống 13 bản ghi, toast từ 4 về 0, chỉ trong vài
+    phút. "Không có gì" thường nghĩa là chưa có gì gần đây, không phải tool hỏng — thử
+    kind="all" để thấy cả tile và badge vốn trụ lâu hơn.
+
+    Riêng tư: thông báo chứa nội dung cá nhân thật (tin nhắn, email). Chỉ dùng khi người
+    dùng yêu cầu.
+
+    Tham số:
+        limit: số dòng tối đa.
+        app: lọc theo tên app hoặc AUMID, không phân biệt hoa thường.
+        kind: "toast" (mặc định) · "tile" · "badge" · "all".
+        since_hours: chỉ lấy thông báo trong ngần ấy giờ gần đây.
+    """
+
+    def work() -> str:
+        return notifications_module.read(
+            limit=limit, app=app, kind=kind, since_hours=since_hours
+        )
+
+    return _run(work, timeout=30)
 
 
 @mcp.tool(annotations=READ_ONLY)

@@ -111,11 +111,26 @@ try:
         check("số tab tăng", after > before, f"{before} -> {after}")
 
     print("\n=== 6. ID ổn định giữa hai lần observe ===")
-    first = STA.call(perceive.observe, window=str(hwnd), filter="interactive")
-    second = STA.call(perceive.observe, window=str(hwnd), filter="interactive")
-    ids_first = [line.split("|")[0] for line in first.splitlines() if line.split("|")[0].isdigit()]
-    ids_second = [line.split("|")[0] for line in second.splitlines() if line.split("|")[0].isdigit()]
-    check("ID không đổi khi UI không đổi", ids_first == ids_second, f"{len(ids_first)} phần tử")
+    def id_map(block: str) -> dict[tuple[str, str], str]:
+        out = {}
+        for line in block.splitlines():
+            parts = line.split("|")
+            if len(parts) >= 3 and parts[0].isdigit():
+                out[(parts[1], parts[2])] = parts[0]
+        return out
+
+    first = id_map(STA.call(perceive.observe, window=str(hwnd), filter="interactive"))
+    second = id_map(STA.call(perceive.observe, window=str(hwnd), filter="interactive"))
+    # So sánh theo danh tính (type, name), KHÔNG so danh sách thô: Notepad chỉ hiện nút
+    # "Close Tab" cho tab đang hover, nên tập phần tử đổi theo vị trí con trỏ. So thô sẽ
+    # cho một test chập chờn — mà test chập chờn còn tệ hơn không có test.
+    shared = set(first) & set(second)
+    mismatched = [k for k in shared if first[k] != second[k]]
+    check(
+        "ID giữ nguyên cho cùng một phần tử qua hai lần observe",
+        not mismatched and len(shared) > 5,
+        f"{len(shared)} phần tử chung, {len(mismatched)} lệch id",
+    )
 
     print("\n=== 7. describe_at trên tâm cửa sổ ===")
     rect = ctypes.wintypes.RECT()
@@ -334,7 +349,32 @@ try:
         check("file PNG tồn tại và khác rỗng", Path(png[0]).stat().st_size > 1000)
     check("kết quả ghi lại lời khai", good[:30] in result)
 
-    print("\n=== 13. dọn dẹp: xoá nội dung và đóng tab thừa ===")
+    print("\n=== 13. đọc thông báo Windows ===")
+    from uia_mcp import notifications as notif  # noqa: PLC0415
+
+    out = notif.read(limit=5, kind="all")
+    check("đọc được kho thông báo", out.startswith("# thời gian|app|loại|nội dung"), out.splitlines()[0])
+    rows = [l for l in out.splitlines() if not l.startswith("#") and "|" in l]
+    print(f"  (thông tin) {len(rows)} dòng đọc được")
+
+    try:
+        notif.read(kind="khong-ton-tai")
+        check("từ chối kind sai", False, "không ném lỗi")
+    except ValueError as exc:
+        check("từ chối kind sai", "toast" in str(exc), str(exc)[:50])
+
+    # Lọc theo app không khớp gì thì phải nói rõ kho có bao nhiêu bản ghi,
+    # chứ không im lặng trả bảng rỗng khiến người đọc tưởng tool hỏng.
+    empty = notif.read(app="zzz-khong-co-app-nay", kind="all")
+    check("kết quả rỗng có giải thích", "kho có" in empty, empty.splitlines()[-1][:60])
+
+    # Khử trùng lặp: tile lặp cùng một câu ở nhiều binding.
+    texts = notif._texts(
+        b"<tile><binding><text>A</text></binding><binding><text>A</text><text>B</text></binding></tile>"
+    )
+    check("khử trùng lặp text của tile", texts == ["A", "B"], str(texts))
+
+    print("\n=== 14. dọn dẹp: xoá nội dung và đóng tab thừa ===")
     # Notepad của Windows 11 khôi phục session, nên phải trả nó về trạng thái sạch,
     # nếu không lần mở sau sẽ đầy tab rác. Vòng lặp này cũng là một bài test thật:
     # observe -> act -> observe lại, nhiều lượt liên tiếp.

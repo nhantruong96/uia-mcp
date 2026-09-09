@@ -67,6 +67,7 @@ claude mcp add uia --scope user -- <đường-dẫn-repo>\.venv\Scripts\uia-mcp.
 | `read_table(id, start_row, max_rows)` | Bảng/lưới qua `GridPattern`, có phân trang |
 | `act(id, action, value)` | Tác động qua control pattern, có thang fallback |
 | `press_key(combo)` | Phím tắt toàn cục, ví dụ `ctrl+s` |
+| `notifications(limit, app, kind, since_hours)` | Thông báo Windows, đọc thẳng kho SQLite — không mở panel |
 | `screenshot(tried, window)` | **Lối thoát cuối** — chụp PNG, bắt khai đã thử gì trước đó |
 
 ### `observe` trả về gì
@@ -172,6 +173,27 @@ tả thứ đang nằm ở đó, chứ không bao giờ trả về nhầm phần
 là tai nạn đã xảy ra thật trong quá trình phát triển.
 
 Chụp lại khi giao diện đổi đáng kể: đổi tab ribbon, bật/tắt panel, đổi kích thước cửa sổ.
+
+### `notifications` — đọc mà không đụng màn hình
+
+Đọc thẳng `wpndatabase.db` của Notification Center thay vì mở panel bằng Win+N. Chỉ đọc,
+không can thiệp màn hình, và có cả lịch sử chứ không riêng thứ đang hiện. Không cần thư
+viện ngoài — `sqlite3` nằm sẵn trong Python.
+
+```
+# thời gian|app|loại|nội dung
+2026-09-09 15:56|Microsoft.Todos|tile|Hi there, · what do you want to focus on today?
+```
+
+**Toast biến mất rất nhanh.** Đo ngay trong lúc viết module: kho tụt từ 19 xuống 13 bản
+ghi, toast từ 4 về 0, chỉ trong vài phút — Windows xoá khi người dùng gạt đi hoặc khi hết
+hạn. `tile` và `badge` trụ lâu hơn. Nên "không có gì" thường nghĩa là chưa có gì gần đây,
+không phải tool hỏng; thử `kind="all"`.
+
+Kho được chép ra thư mục tạm trước khi đọc, **kèm cả `-wal` và `-shm`** — SQLite chạy chế
+độ WAL, chép mỗi `.db` sẽ thiếu đúng những thông báo mới nhất.
+
+Riêng tư: thông báo chứa tin nhắn và email thật. Chỉ dùng khi người dùng yêu cầu.
 
 ### `act` — các action
 
