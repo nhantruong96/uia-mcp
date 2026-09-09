@@ -1,0 +1,19 @@
+[project]
+name = "uia-mcp"
+version = "0.1.0"
+description = "Điều khiển Windows qua UI Automation — không screenshot, không toạ độ"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.0.0",
+    "comtypes>=1.4.0",
+]
+
+[project.scripts]
+uia-mcp = "uia_mcp.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uia_mcp"]
