@@ -250,8 +250,10 @@ bộ cây — mà trạng thái sai còn tệ hơn không có trạng thái.
 | **Java (Swing/AWT)** không có UIA | Cần Java Access Bridge — chưa làm, giai đoạn 3 |
 | **Canvas / viewport 3D / game** chỉ là một `CustomControl` | UIA không cứu được. Dùng API riêng của app, hoặc vision |
 | **Office web apps**: lưới Excel Online vẽ trên canvas — không `GridPattern`, `Document` báo `NoScroll` | Cây trợ năng vẫn đầy đủ (thanh công thức, Name Box, ribbon đều đọc được), nhưng bản thân lưới thì không. Muốn ô nào thì qua Name Box + formula bar, hoặc dùng Excel MCP trên file gốc |
+| **Ribbon Revit — tab không có tên** | 22 phần tử `Tab`/`TabControl` đều rỗng `Name`. Không trỏ tới tab "Structure" hay "Add-Ins" bằng tên được. Nhưng **nhãn tab lại là `Text` riêng** ở dải y≈57 và có tên đầy đủ — tìm `Text` rồi click vào nó |
+| **Ribbon Revit — panel của add-in bên thứ ba không có phần tử con** | `Autodesk.Windows.RibbonPanel` là **leaf tuyệt đối**: 0 con ở cả Raw/Control/Content view, không pattern nào, `LegacyIAccessible.GetIAccessible()` trả `None`. Control `AdWindows` của Autodesk không tạo WPF automation peer — client không ép được. Panel *có* lộ `rect`, nên chỉ còn cách click theo toạ độ và **kiểm chứng bằng hậu điều kiện thật** (ví dụ nút MCP Server của revit-mcp: kiểm tra port 8080 có LISTEN không) |
 | **App chạy admin** | Server phải cùng mức toàn vẹn, hoặc ký với `uiAccess=true` |
-| Cửa sổ treo | `TransactionTimeout` 5s + timeout 20s ở tầng STA; sau đó server báo kẹt và cần khởi động lại |
+| Cửa sổ treo | `TransactionTimeout` 30s (chỉnh bằng `UIA_MCP_TRANSACTION_TIMEOUT_MS`) + timeout 20s ở tầng STA; sau đó server báo kẹt và cần khởi động lại. Đặt ngắn hơn sẽ hỏng trên app nặng: Revit cần 6–16s cho một lần duyệt subtree, ngưỡng 5s làm mọi truy vấn trả `UIA_E_TIMEOUT` dưới dạng COMError không thông điệp — rất dễ chẩn đoán nhầm thành "app treo" |
 | Chưa có event-driven refresh | Mỗi `observe` là một lần quét lại — giai đoạn 2 |
 
 ---
